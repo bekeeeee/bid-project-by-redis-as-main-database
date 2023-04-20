@@ -5,7 +5,7 @@ import { DateTime } from 'luxon';
 import { getItem, itemsByPrice } from './items';
 
 export const createBid = async (attrs: CreateBidAttrs) => {
-	return withLock(attrs.itemId, async () => {
+	return withLock(attrs.itemId, async (lockedClient: typeof client, singal: any) => {
 		const item = await getItem(attrs.itemId);
 		if (!item) throw new Error('Item does not exist');
 
@@ -17,13 +17,13 @@ export const createBid = async (attrs: CreateBidAttrs) => {
 		const serialized = serializeHistory(attrs.amount, attrs.createdAt.toMillis());
 
 		return Promise.all([
-			client.rPush(bidHistoryKey(attrs.itemId), serialized),
-			client.hSet(itemsKey(item.id), {
+			lockedClient.rPush(bidHistoryKey(attrs.itemId), serialized),
+			lockedClient.hSet(itemsKey(item.id), {
 				bids: item.bids + 1,
 				price: attrs.amount,
 				highestBidUserId: attrs.userId
 			}),
-			client.zAdd(itemsByPriceKey(), {
+			lockedClient.zAdd(itemsByPriceKey(), {
 				value: item.id,
 				score: attrs.amount
 			})
